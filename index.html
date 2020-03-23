@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./reset.css">
+    <link rel="stylesheet" href="./style.css">
+    <script
+            src="https://code.jquery.com/jquery-3.4.1.min.js"
+            integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+            crossorigin="anonymous"></script>
+    <link href='./fullcalendar-4.4.0/packages/core/main.css' rel='stylesheet' />
+    <link href='./fullcalendar-4.4.0/packages/daygrid/main.css' rel='stylesheet' />
+    <link href='./fullcalendar-4.4.0/packages/timegrid/main.css' rel='stylesheet' />
+    <link href='./fullcalendar-4.4.0/packages/list/main.css' rel='stylesheet' />
+    <script src='./fullcalendar-4.4.0/packages/core/main.js'></script>
+    <script src='./fullcalendar-4.4.0/packages/interaction/main.js'></script>
+    <script src='./fullcalendar-4.4.0/packages/daygrid/main.js'></script>
+    <script src='./fullcalendar-4.4.0/packages/timegrid/main.js'></script>
+    <script src='./fullcalendar-4.4.0/packages/list/main.js'></script>
+    <title>キャンプ女子</title>
+</head>
+<body>
+<div class="main">
+    <div class="main-inside hide">
+        <h1 style="text-align: center">キャンプ女子・予約カレンダープロトタイプ</h1>
+        <div class="calendar__container">
+            <div id='calendar'></div>
+            <div class="caution__container">
+                <div class="caution__wraper">
+                    <div class="caution__item">
+                        <div class="caution__box mr" style="background: #FFBBBC;"></div>
+                        満席
+                    </div>
+                    <div class="caution__item">
+                        <div class="caution__box mr" style="background: white;"></div>
+                        空きあり
+                    </div>
+                    <div class="caution__item">
+                        <div class="caution__text" style="background-color: #F4C764;">25日</div>：
+                        +1000円/人
+                    </div>
+                    <div class="caution__item">
+                        <div class="caution__text" style="background-color: #B9D790;">25日</div>：
+                        +1500円/人
+                    </div>
+                    <div class="caution__item">
+                        <div class="caution__text" style="background-color: #267E4A">残り2</div>：
+                        残り組数
+                    </div>
+                    <div class="caution__item">
+                        <div class="caution__text" style="background-color: gray">完売</div>：
+                        完売
+                    </div>
+                </div>
+                <div class="caution__button__wrapper">
+                    <div class="caution__button">
+                        <a href="">予約する</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="spinner" class="hide">
+    <div class="spinner">
+        <div class="rect1"></div>
+        <div class="rect2"></div>
+        <div class="rect3"></div>
+        <div class="rect4"></div>
+        <div class="rect5"></div>
+    </div>
+    <p>
+        キノコキャンプ〜〜
+    </p>
+</div>
+
+</body>
+<script>
+    // Google Spreadsheet の 描画用かつパブリックに公開したシート の URLを指定する
+    let ss_url = "https://script.google.com/macros/s/AKfycbxtNtU_CU4p0aEKMze_5VLVXXf15ekXbPjtN1TS4idWLQn15q4m/exec";
+
+    // 描画用のデータ（配列）を初期化する
+    let _events = [];
+
+    // 今回は、jQuery の Ajaxを使用する
+    $.ajax({
+      url: ss_url,
+      type: 'get',
+      cache: false,
+      dataType: 'json',
+      //リクエストが完了するまで実行される
+      beforeSend: function(){
+        $('#spinner').removeClass('hide');
+      }
+    })
+      .done(function(response) {
+        $('#spinner').addClass('hide');
+        $('.main-inside').removeClass('hide');
+        // Ajaxが成功した場合、このブロックに入ってくる
+        _events = reshapeEventsJson(response);
+        var calendarEl = document.getElementById('calendar');
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+          plugins: [ 'interaction', 'dayGrid', 'timeGrid', 'list' ],
+          header: {
+            left: '',
+            center: 'title',
+            right: ''
+          },
+          locale: 'ja',
+          events: _events
+        });
+
+        calendar.render();
+      })
+      .catch(function(e) {
+        // Ajaxが失敗した場合、このブロックに入ってくる
+        // もしやるとしたら、ここで画面に「もう一度リロードしてください」とかの注意文言を出すかつ、slack通知とかしておく
+        console.log(e);
+      });
+  /*
+      FullCalendar描画用にデータを整形する。
+    Ajaxで取得した配列を引数に入れる
+
+    ロジック
+    1. capacity <= 0: 2つJSONを作成する。以下みたいな感じ
+    以下は例
+    {
+      "start": "2020-03-19",
+      "end": "2020-03-19",
+      overlap: false,
+      rendering: 'background',
+      color: "red",
+    },
+    {
+      "title": "完売",
+      "start": "2020-03-19",
+      "end": "2020-03-19",
+      color: 'gray'
+    }
+
+    2. capacity > 0: 2つJSONを作成する。以下みたいな感じ
+    以下は例
+    {
+      "title": "¥5,980",
+      "start": "2020-03-25",
+      "end": "2020-03-25"
+    },
+    {
+      "title": "残数4",
+      "start": "2020-03-25",
+      "end": "2020-03-25",
+      color: '#257e4a'
+    }
+   */
+  function reshapeEventsJson(response) {
+    /*
+    この関数内で使用する配列とオブジェクトを初期化する
+     */
+    let array = [];
+    let _json = {};
+    let tmp ={};
+
+    /*
+    GASで取得する値を初期化する（初期値を入れておくことで、万が一間違っていても予約されるリスクを少なくしておく）
+     */
+    let _date = "";
+    let _capacity = "0";
+    let _price = "5,980";
+    let _full_pricing = "0";
+
+    /*
+    好みになりますが、メッセージやカラー系の文字列を定義しておく
+     */
+    const MESSAGE_SOLD_OUT = "完売";
+    const MESSAGE_FEW_LEFT = "残数";
+    const COLOR_FEW_LEFT = "#257e4a";
+    const COLOR_SOLD_OUT = "gray";
+    const COLOR_WEEKEND = "#257e4a";
+    const COLOR_SPECIAL = "#F4C764";
+
+    /*
+
+     */
+
+    for(let i = 0; i < response.length; i++ ){
+      _json = response[i];
+      _date = _json["date"];
+      _capacity = _json["capacity"];
+      _price = _json["price"];
+      _full_pricing = _json["full_pricing"];
+
+      if(_capacity === "0") {
+        array.push({
+          "title": MESSAGE_SOLD_OUT,
+          "start": _date,
+          "end": _date,
+          color: COLOR_SOLD_OUT
+        });
+        array.push({
+          "start": _date,
+          "end": _date,
+          overlap: false,
+          rendering: 'background',
+          color: "red",
+        })
+      } else {
+        let _background_color = "";
+        let tmp = {
+          "start": _date,
+          "end": _date,
+          overlap: false,
+          rendering: 'background'
+        };
+        if(_full_pricing === "1") {
+          tmp["color"] = COLOR_WEEKEND;
+          array.push(tmp);
+        } else if(_full_pricing === "2") {
+          tmp["color"] = COLOR_SPECIAL;
+          array.push(tmp);
+        }
+
+        array.push({
+          "title": `${MESSAGE_FEW_LEFT}${_capacity}`,
+          "start": _date,
+          "end": _date,
+          color: COLOR_FEW_LEFT
+        });
+        array.push({
+          "title": `${_price}`,
+          "start": _date,
+          "end": _date
+        });
+      }
+    }
+    return array;
+  }
+
+    // event例
+    // [
+    //   {
+    //     "start": "2020-03-22",
+    //     "end": "2020-03-22",
+    //     overlap: false,
+    //     rendering: 'background',
+    //     color: "red",
+    //   },
+    //   {
+    //     "title": "¥5,980",
+    //     "start": "2020-03-24",
+    //     "end": "2020-03-24"
+    //   },
+    //   {
+    //     "title": "残数5",
+    //     "start": "2020-03-24",
+    //     "end": "2020-03-24",
+    //     color: 'gray'
+    //   },
+    //   {
+    //     "title": "残数2",
+    //     "start": "2020-03-30",
+    //     "end": "2020-03-30",
+    //     color: '#257e4a'
+    //   },
+    //   {
+    //     "title": "残数2",
+    //     "start": "2020-03-28",
+    //     "end": "2020-03-28",
+    //     color: '#257e4a'
+    //   },
+    //   {
+    //     "title": "¥5,980",
+    //     "start": "2020-03-25",
+    //     "end": "2020-03-25"
+    //   },
+    //   {
+    //     "title": "残数4",
+    //     "start": "2020-03-25",
+    //     "end": "2020-03-25",
+    //     color: 'gray'
+    //   },
+    //   {
+    //     "start": "2020-03-31",
+    //     "end": "2020-03-31",
+    //     overlap: false,
+    //     rendering: 'background',
+    //     color: "red",
+    //   },
+    //   {
+    //     "start": "2020-03-19",
+    //     "end": "2020-03-19",
+    //     overlap: false,
+    //     rendering: 'background',
+    //     color: "red",
+    //   },
+    //   {
+    //     "title": "完売",
+    //     "start": "2020-03-19",
+    //     "end": "2020-03-19",
+    //     color: 'gray'
+    //   }
+    // ]
+</script>
+</html>
